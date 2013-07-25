@@ -36,3 +36,5 @@ HttpGet req = new HttpGet("https://my/protected/url");
 HttpResponse res = client.execute(req);
 ... = res.getEntity().getContent(); // returns an InputStream
 </code></pre>
+
+[![githalytics.com alpha](https://cruel-carlota.pagodabox.com/eaced398ef831f1b082ced9a07694513 "githalytics.com")](http://githalytics.com/reckart/shib-http-client)
