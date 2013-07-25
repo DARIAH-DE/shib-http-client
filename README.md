@@ -25,10 +25,6 @@ This client aims to be minimalisic but functional. So the "features" are:
 * *No certificate checks* - it is easy to disable all certificate checks. If you don't disable 
 this, make sure your Java environment knows about the certificates used by the IdP and SP.
 
-Currently, this should work for HTTP GET and HEAD requests. For other requests, in particular POST 
-requests, the client throws an exception after the login, which should be cought and the original 
-POST request should be retried. Maybe this can be automatized at some point.
-
 
 Example
 -------
