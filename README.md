@@ -37,4 +37,18 @@ HttpResponse res = client.execute(req);
 ... = res.getEntity().getContent(); // returns an InputStream
 </code></pre>
 
+
+Acknowledgements
+----------------
+
+Thanks to the folks from the Shibboleth mailing list.
+
+This code was developed as part of the [DARIAH-DE project](https://de.dariah.eu).
+
+![DARIAH Logo](https://de.dariah.eu/liferay-dariah-theme/images/dariah-logo.png)
+
+Copyright 2013, Ubiquitous Knowledge Processing (UKP) Lab, Technische Universität Darmstadt
+
+Licensed under the Apache Software License 2.0.
+
 [![githalytics.com alpha](https://cruel-carlota.pagodabox.com/eaced398ef831f1b082ced9a07694513 "githalytics.com")](http://githalytics.com/reckart/shib-http-client)
