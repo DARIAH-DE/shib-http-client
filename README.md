@@ -30,6 +30,9 @@ Example
 -------
 
 <pre><code>
+// Initialize OpenSAML
+DefaultBootstrap.bootstrap();
+
 // The last argument indicates to accept any certificate
 HttpClient client = new ShibHttpClient(aIdpUrl, aUsername, aPassword, true);
 HttpGet req = new HttpGet("https://my/protected/url");
