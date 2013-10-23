@@ -7,8 +7,10 @@ A bit of naming first:
 
 * IdP (identity provider) - the server who knows who you are
 * SP (service provider) - the server who wants to know who you are
+* ECP (Enhanced Client or Proxy) - the protocol used by this client to perform authentication
+  (needs to be enabled on the IdP and SP, see Troubleshooting below)
 
-The process is roughly this:
+The process goes roughly like this:
 
 1. You make a request to the SP
 2. SP wants to know who you are
@@ -43,9 +45,9 @@ HttpResponse res = client.execute(req);
 Troubleshooting
 ---------------
 
-###### IDP URL sanity check
+###### IdP URL sanity check
 
-The IDP URL should point directly at the ECP profile endpoint of the IDP, so it should be similar
+The IdP URL should point directly at the ECP profile endpoint of the IdP, so it should be similar
 to this:
 
 <pre><code>https://MY-IDP-HOST/idp/profile/SAML2/SOAP/ECP</code></pre>
