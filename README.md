@@ -16,7 +16,7 @@ The process is roughly this:
 4. You pass the ticket on to the SP
 5. the SP replies to your request
 
-The goal of this project is to perform the steps 2-3 for you.
+The goal of this project is to perform the steps 2-4 for you.
 
 This client aims to be minimalisic but functional. So the "features" are:
 
@@ -40,10 +40,19 @@ HttpResponse res = client.execute(req);
 </code></pre>
 
 
-Testing if ECP is enabled on the remote host
---------------------------------------------
+Troubleshooting
+---------------
 
-If the client does not work as expected, you should check if the remote server does support ECP at
+###### IDP URL sanity check
+
+The IDP URL should point directly at the ECP profile endpoint of the IDP, so it should be similar
+to this:
+
+<pre><code>https://MY-IDP-HOST/idp/profile/SAML2/SOAP/ECP</code></pre>
+
+###### ECP check
+
+If the client does not work as expected, you should check if the SP does support ECP at
 all. You can do this with a 'simple' command (replace URL with the URL you want to test):
 
 <pre><code>curl -k -I -H 'Accept: application/vnd.paos+xml' -H 'PAOS: ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"' URL
