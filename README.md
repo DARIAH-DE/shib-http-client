@@ -29,8 +29,7 @@ this, make sure your Java environment knows about the certificates used by the I
 Example
 -------
 
-<pre><code>
-// Initialize OpenSAML
+<pre><code>// Initialize OpenSAML
 DefaultBootstrap.bootstrap();
 
 // The last argument indicates to accept any certificate
@@ -47,12 +46,12 @@ Testing if ECP is enabled on the remote host
 If the client does not work as expected, you should check if the remote server does support ECP at
 all. You can do this with a 'simple' command (replace URL with the URL you want to test):
 
-<pre><code>
-curl -k -I -H 'Accept: application/vnd.paos+xml' -H 'PAOS: ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"' URL
+<pre><code>curl -k -I -H 'Accept: application/vnd.paos+xml' -H 'PAOS: ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"' URL
 </code></pre>
 
-<pre><code>
-HTTP/1.1 200 OK
+*Note:* The command is quite long. You may need to scroll sideways to see the rest.
+
+<pre><code>HTTP/1.1 200 OK
 Date: Wed, 23 Oct 2013 10:54:36 GMT
 Server: Apache/2.2.17 (Linux/SUSE)
 Expires: 01-Jan-1997 12:00:00 GMT
