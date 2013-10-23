@@ -41,6 +41,31 @@ HttpResponse res = client.execute(req);
 </code></pre>
 
 
+Testing if ECP is enabled on the remote host
+--------------------------------------------
+
+If the client does not work as expected, you should check if the remote server does support ECP at
+all. You can do this with a 'simple' command (replace URL with the URL you want to test):
+
+<pre><code>
+curl -k -I -H 'Accept: application/vnd.paos+xml' -H 'PAOS: ver="urn:liberty:paos:2003-08";"urn:oasis:names:tc:SAML:2.0:profiles:SSO:ecp"' URL
+</code></pre>
+
+<pre><code>
+HTTP/1.1 200 OK
+Date: Wed, 23 Oct 2013 10:54:36 GMT
+Server: Apache/2.2.17 (Linux/SUSE)
+Expires: 01-Jan-1997 12:00:00 GMT
+Cache-Control: no-cache, no-store, must-revalidate, private
+Pragma: no-cache
+Content-Length: 1356
+Content-Type: application/vnd.paos+xml
+</code></pre>
+
+If the reply does not look approximately like this, in particular if the Content-Type line is not
+there, then the remote host does not have ECP enabled and you cannot use this client to access the
+host. Ask the administrator of the remote host to enable the ECP profile.
+
 Acknowledgements
 ----------------
 
