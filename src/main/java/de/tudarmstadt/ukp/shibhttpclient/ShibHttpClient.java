@@ -491,7 +491,8 @@ implements HttpClient
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
-                    && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())) {
+                    && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())
+                    && (originalRequest.getRequestLine().getMethod() != "CONNECT")) {
                 EntityUtils.consume(spLoginResponse.getEntity());
                 throw new NonRepeatableRequestException("Request of type [" + 
                         originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
