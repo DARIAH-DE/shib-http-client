@@ -86,13 +86,13 @@ import org.opensaml.xml.util.Base64;
  * authentication request, a login is performed before the original request is executed.
  */
 public class ShibHttpClient
-    implements HttpClient
+implements HttpClient
 {
     private final Log log = LogFactory.getLog(getClass());
 
     private static final String AUTH_IN_PROGRESS = ShibHttpClient.class.getName()
             + ".AUTH_IN_PROGRESS";
-    
+
     private static final String MIME_TYPE_PAOS = "application/vnd.paos+xml";
 
 //    private static final QName E_PAOS_REQUEST = new QName(SAMLConstants.PAOS_NS, "Request");
@@ -151,33 +151,33 @@ public class ShibHttpClient
         connMgr.setDefaultMaxPerRoute(5);
         
         // retrieve the JVM parameters for proxy state (do we have a proxy?)
-		SystemDefaultRoutePlanner sdrp = new SystemDefaultRoutePlanner(ProxySelector.getDefault());
+        SystemDefaultRoutePlanner sdrp = new SystemDefaultRoutePlanner(ProxySelector.getDefault());
 
-		// The client needs to remember the auth cookie
-		cookieStore = new BasicCookieStore();
-		RequestConfig globalRequestConfig = RequestConfig.custom()
-											.setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
-											.build();
+        // The client needs to remember the auth cookie
+        cookieStore = new BasicCookieStore();
+        RequestConfig globalRequestConfig = RequestConfig.custom()
+                .setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
+                .build();
 
-		// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-		// the authentication can be handled by the RequestAddCookies interceptor later
-		HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
-		// Automatically log into IdP if SP requests this
-		HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
-		
-		// build our client
-		client = HttpClients.custom()
-				// use a proxy if one is specified for the JVM
-				.setRoutePlanner(sdrp) 
-				// The client needs to remember the auth cookie
-				.setDefaultRequestConfig(globalRequestConfig) 
-				.setDefaultCookieStore(cookieStore)
-				// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-				// the authentication can be handled by the RequestAddCookies interceptor later
-				.addInterceptorFirst(preProcessor)
-				// Automatically log into IdP if SP requests this
-				.addInterceptorFirst(postProcessor)
-				.build();
+        // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+        // the authentication can be handled by the RequestAddCookies interceptor later
+        HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
+        // Automatically log into IdP if SP requests this
+        HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
+
+        // build our client
+        client = HttpClients.custom()
+                // use a proxy if one is specified for the JVM
+                .setRoutePlanner(sdrp)
+                // The client needs to remember the auth cookie
+                .setDefaultRequestConfig(globalRequestConfig)
+                .setDefaultCookieStore(cookieStore)
+                // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+                // the authentication can be handled by the RequestAddCookies interceptor later
+                .addInterceptorFirst(preProcessor)
+                // Automatically log into IdP if SP requests this
+                .addInterceptorFirst(postProcessor)
+                .build();
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -280,7 +280,7 @@ public class ShibHttpClient
                 throws HttpException, IOException
         {
             if (req.getRequestLine().getMethod() == "CONNECT") {
-            	log.trace("Received CONNECT -- Likely to be a proxy request. Skipping pre-processor");
+                log.trace("Received CONNECT -- Likely to be a proxy request. Skipping pre-processor");
                 return;
             }
 
@@ -307,7 +307,7 @@ public class ShibHttpClient
                     log.trace(c.toString());
                 }
                 log.trace("Knocked");
-           }
+            }
         }
     }
 
@@ -322,25 +322,25 @@ public class ShibHttpClient
         public void process(HttpResponse res, HttpContext ctx)
             throws HttpException, IOException
         {
-        	HttpRequest originalRequest;
-        	// check for RequestWrapper objects, retrieve the original request
-    		if (ctx.getAttribute("http.request") instanceof RequestWrapper) { // does not forward request to original
+            HttpRequest originalRequest;
+            // check for RequestWrapper objects, retrieve the original request
+            if (ctx.getAttribute("http.request") instanceof RequestWrapper) { // does not forward request to original
                 log.trace("RequestWrapper found");
-    			originalRequest = (HttpRequest) ((RequestWrapper) ctx.getAttribute("http.request")).getOriginal();
-    		}
-    		else {  // use a basic HttpRequest because BasicHttpRequest objects cannot be recast to HttpUriRequest objects
-    			originalRequest = (HttpRequest) ctx.getAttribute("http.request");
-    		}
+                originalRequest = (HttpRequest) ((RequestWrapper) ctx.getAttribute("http.request")).getOriginal();
+            }
+            else {  // use a basic HttpRequest because BasicHttpRequest objects cannot be recast to HttpUriRequest objects
+                originalRequest = (HttpRequest) ctx.getAttribute("http.request");
+            }
 
             log.trace("Accessing [" + originalRequest.getRequestLine().getUri() + " "
                     + originalRequest.getRequestLine().getMethod() + "]");
-            
+
             // -- Check if authentication is already in progress ----------------------------------
             if (res.getParams().isParameterTrue(AUTH_IN_PROGRESS)) {
                 log.trace("Authentication in progress -- skipping post processor");
                 return;
             }
-            
+
             // -- Check if authentication is necessary --------------------------------------------
             boolean isSamlSoap = false;
             if (res.getFirstHeader(HEADER_CONTENT_TYPE) != null) {
@@ -354,12 +354,12 @@ public class ShibHttpClient
             }
 
             log.trace("Detected login request");
-            
+
             // -- If the request was a HEAD request, we need to try again using a GET request  ----
             HttpResponse paosResponse = res;
             if (originalRequest.getRequestLine().getMethod() == "HEAD") {
                 log.trace("Original request was a HEAD, restarting authenticiation with GET");
-                
+
                 HttpGet authTriggerRequest = new HttpGet(originalRequest.getRequestLine().getUri());
                 authTriggerRequest.getParams().setBooleanParameter(AUTH_IN_PROGRESS, true);
                 paosResponse = client.execute(authTriggerRequest);
@@ -368,7 +368,7 @@ public class ShibHttpClient
             // -- Parse PAOS response -------------------------------------------------------------
             Envelope initialLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
                     paosResponse.getEntity().getContent());
-            
+
             // -- Capture relay state (optional) --------------------------------------------------
             RelayState relayState = null;
             if (!initialLoginSoapResponse.getHeader()
