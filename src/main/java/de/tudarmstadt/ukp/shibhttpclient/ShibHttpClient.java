@@ -127,7 +127,7 @@ implements HttpClient
 
     private BasicParserPool parserPool;
 
-    private static final List<String> REDIRECTABLE = asList("HEAD", "GET");
+    private static final List<String> REDIRECTABLE = asList("HEAD", "GET", "CONNECT");
 
     /**
      * Create a new client.
@@ -306,11 +306,6 @@ implements HttpClient
         public void process(final HttpRequest req, final HttpContext ctx)
                 throws HttpException, IOException
         {
-            if (req.getRequestLine().getMethod() == "CONNECT") {
-                log.trace("Received CONNECT -- Likely to be a proxy request. Skipping pre-processor");
-                return;
-            }
-
             req.addHeader(HEADER_ACCEPT, MIME_TYPE_PAOS);
             req.addHeader(HEADER_PAOS, "ver=\"" + SAMLConstants.PAOS_NS + "\";\""
                     + SAMLConstants.SAML20ECP_NS + "\"");
@@ -491,8 +486,7 @@ implements HttpClient
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
-                    && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())
-                    && (originalRequest.getRequestLine().getMethod() != "CONNECT")) {
+                    && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())) {
                 EntityUtils.consume(spLoginResponse.getEntity());
                 throw new NonRepeatableRequestException("Request of type [" + 
                         originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
