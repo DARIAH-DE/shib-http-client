@@ -18,13 +18,13 @@
 
 package de.tudarmstadt.ukp.shibhttpclient;
 
-import static de.tudarmstadt.ukp.shibhttpclient.Utils.getAnyCertManager;
 import static de.tudarmstadt.ukp.shibhttpclient.Utils.unmarshallMessage;
 import static de.tudarmstadt.ukp.shibhttpclient.Utils.xmlToString;
 import static java.util.Arrays.asList;
 
 import java.io.IOException;
 import java.net.ProxySelector;
+import java.security.GeneralSecurityException;
 import java.util.List;
 
 import javax.security.sasl.AuthenticationException;
@@ -46,18 +46,23 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.params.HttpClientParams;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.ClientConnectionManager;
-import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLContextBuilder;
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
 import org.apache.http.cookie.Cookie;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.client.RequestWrapper;
-import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HttpContext;
@@ -142,10 +147,24 @@ implements HttpClient
 
         // Use a pooling connection manager, because we'll have to do a call out to the IdP
         // while still being in a connection with the SP
-        PoolingClientConnectionManager connMgr = new PoolingClientConnectionManager();
+        PoolingHttpClientConnectionManager connMgr;
         if (aAnyCert) {
-            // Ignore unknown certificates
-            connMgr.getSchemeRegistry().register(new Scheme("https", 443, getAnyCertManager()));
+            try {
+                SSLContextBuilder builder = new SSLContextBuilder();
+                builder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
+                SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build());
+                Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
+                        .<ConnectionSocketFactory> create().register("https", sslsf).build();
+                connMgr = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+            }
+            catch (GeneralSecurityException e) {
+                // There shouldn't be any of these exceptions, because we do not use an actual
+                // keystore
+                throw new IllegalStateException(e);
+            }
+        }
+        else {
+            connMgr = new PoolingHttpClientConnectionManager();
         }
         connMgr.setMaxTotal(10);
         connMgr.setDefaultMaxPerRoute(5);
@@ -167,6 +186,7 @@ implements HttpClient
 
         // build our client
         client = HttpClients.custom()
+                .setConnectionManager(connMgr)
                 // use a proxy if one is specified for the JVM
                 .setRoutePlanner(sdrp)
                 // The client needs to remember the auth cookie
@@ -289,8 +309,8 @@ implements HttpClient
                     + SAMLConstants.SAML20ECP_NS + "\"");
 
             HttpRequest r = req;
-            if (req instanceof RequestWrapper) { // does not forward request to original
-                r = ((RequestWrapper) req).getOriginal();
+            if (req instanceof HttpRequestWrapper) { // does not forward request to original
+                r = ((HttpRequestWrapper) req).getOriginal();
             }
 
             // This request is not redirectable, so we better knock to see if authentication
@@ -324,9 +344,9 @@ implements HttpClient
         {
             HttpRequest originalRequest;
             // check for RequestWrapper objects, retrieve the original request
-            if (ctx.getAttribute("http.request") instanceof RequestWrapper) { // does not forward request to original
+            if (ctx.getAttribute("http.request") instanceof HttpRequestWrapper) { // does not forward request to original
                 log.trace("RequestWrapper found");
-                originalRequest = (HttpRequest) ((RequestWrapper) ctx.getAttribute("http.request")).getOriginal();
+                originalRequest = (HttpRequest) ((HttpRequestWrapper) ctx.getAttribute("http.request")).getOriginal();
             }
             else {  // use a basic HttpRequest because BasicHttpRequest objects cannot be recast to HttpUriRequest objects
                 originalRequest = (HttpRequest) ctx.getAttribute("http.request");
@@ -431,11 +451,11 @@ implements HttpClient
                 }
             }
 
-//            // compare the responseConsumerURL from the SP to the assertionConsumerServiceURL from
-//            // the IdP and if they are not identical then send a SOAP fault to the SP
-//            if (false) {
-//                // Nice guys should send a fault to the SP - we are NOT nice yet
-//            }
+            // compare the responseConsumerURL from the SP to the assertionConsumerServiceURL from
+            // the IdP and if they are not identical then send a SOAP fault to the SP
+            // if (false) {
+            //     // Nice guys should send a fault to the SP - we are NOT nice yet
+            // }
 
             // -- Forward ticket to the SP --------------------------------------------------------
             // craft the package to send to the SP by copying the response from the IdP but
@@ -466,8 +486,8 @@ implements HttpClient
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
                     && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())) {
                 EntityUtils.consume(spLoginResponse.getEntity());
-                throw new NonRepeatableRequestException("Request of type [" + originalRequest.getRequestLine().getMethod()
-                        + "] cannot be redirected");
+                throw new NonRepeatableRequestException("Request of type [" + 
+                        originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
             }
 
             // -- Transparently return response to original request -------------------------------
@@ -475,7 +495,6 @@ implements HttpClient
             res.setEntity(spLoginResponse.getEntity());
             res.setHeaders(spLoginResponse.getAllHeaders());
             res.setStatusLine(spLoginResponse.getStatusLine());
-            res.setLocale(spLoginResponse.getLocale());
         }
     }
 }
