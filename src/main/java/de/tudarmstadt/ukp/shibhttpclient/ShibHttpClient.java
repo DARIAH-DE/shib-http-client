@@ -23,6 +23,7 @@ import static de.tudarmstadt.ukp.shibhttpclient.Utils.xmlToString;
 import static java.util.Arrays.asList;
 
 import java.io.IOException;
+import java.net.ProxySelector;
 import java.util.List;
 
 import javax.security.sasl.AuthenticationException;
@@ -39,11 +40,12 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.NonRepeatableRequestException;
 import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.config.CookieSpecs;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.params.ClientPNames;
 import org.apache.http.client.params.CookiePolicy;
 import org.apache.http.client.params.HttpClientParams;
 import org.apache.http.conn.ClientConnectionManager;
@@ -51,9 +53,13 @@ import org.apache.http.conn.scheme.Scheme;
 import org.apache.http.cookie.Cookie;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.BasicCookieStore;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.RequestWrapper;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
+import org.apache.http.message.BasicHttpRequest;
 import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
@@ -102,7 +108,9 @@ public class ShibHttpClient
 
     private static final String HEADER_PAOS = "PAOS";
 
-    private DefaultHttpClient client;
+    private CloseableHttpClient client;
+
+    private BasicCookieStore cookieStore;
 
     private String idpUrl;
 
@@ -142,17 +150,33 @@ public class ShibHttpClient
         }
         connMgr.setMaxTotal(10);
         connMgr.setDefaultMaxPerRoute(5);
+        
+        // retrieve the JVM parameters for proxy state (do we have a proxy?)
+		SystemDefaultRoutePlanner sdrp = new SystemDefaultRoutePlanner(ProxySelector.getDefault());
 
-        client = new DefaultHttpClient(connMgr);
-        // The client needs to remember the auth cookie
-        client.getParams().setParameter(ClientPNames.COOKIE_POLICY,
-                CookiePolicy.BROWSER_COMPATIBILITY);
+		// The client needs to remember the auth cookie
+		cookieStore = new BasicCookieStore();
+		RequestConfig globalRequestConfig = RequestConfig.custom()
+											.setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
+											.build();
+		
 
-        // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-        // the authentication can be handled by the RequestAddCookies interceptor later
-        client.addRequestInterceptor(new HttpRequestPreprocessor(), 0);
-        // Automatically log in to IdP if SP requests this
-        client.addResponseInterceptor(new HttpRequestPostprocessor());
+		// we're using the basic CloseableHttpClient (DefaultHttpClient is deprecated), so we need to set things explicitly
+		HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
+		HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
+		
+		// build our client
+		client = HttpClients.custom()
+				// use a proxy if one is specified for the JVM
+				.setRoutePlanner(sdrp) 
+				// The client needs to remember the auth cookie
+				.setDefaultRequestConfig(globalRequestConfig) 
+				.setDefaultCookieStore(cookieStore)
+				// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+				// the authentication can be handled by the RequestAddCookies interceptor later
+				.addInterceptorFirst(preProcessor)
+				.addInterceptorFirst(postProcessor)
+				.build();
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -254,6 +278,11 @@ public class ShibHttpClient
         public void process(final HttpRequest req, final HttpContext ctx)
                 throws HttpException, IOException
         {
+            if (req.getRequestLine().getMethod() == "CONNECT") {
+            	log.trace("Received CONNECT -- Likely to be a proxy request. Skipping pre-processor");
+                return;
+            }
+
             req.addHeader(HEADER_ACCEPT, MIME_TYPE_PAOS);
             req.addHeader(HEADER_PAOS, "ver=\"" + SAMLConstants.PAOS_NS + "\";\""
                     + SAMLConstants.SAML20ECP_NS + "\"");
@@ -273,7 +302,7 @@ public class ShibHttpClient
                 HttpHead knockRequest = new HttpHead(r.getRequestLine().getUri());
                 client.execute(knockRequest);
                 
-                for (Cookie c : client.getCookieStore().getCookies()) {
+                for (Cookie c : cookieStore.getCookies()) {
                     log.trace(c.toString());
                 }
                 log.trace("Knocked");
@@ -292,11 +321,16 @@ public class ShibHttpClient
         public void process(HttpResponse res, HttpContext ctx)
             throws HttpException, IOException
         {
-            HttpUriRequest req = (HttpUriRequest) ctx.getAttribute("http.request");
-            HttpRequest originalRequest = req;
-            if (req instanceof RequestWrapper) { // does not forward request to original
-                originalRequest = ((RequestWrapper) req).getOriginal();
-            }
+        	HttpRequest originalRequest;
+        	// check for RequestWrapper objects, retrieve the original request
+    		if (ctx.getAttribute("http.request") instanceof RequestWrapper) { // does not forward request to original
+                log.trace("RequestWrapper found");
+    			originalRequest = (HttpRequest) ((RequestWrapper) ctx.getAttribute("http.request")).getOriginal();
+    		}
+    		else {  // use a basic HttpRequest because BasicHttpRequest objects cannot be recast to HttpUriRequest objects
+    			originalRequest = (HttpRequest) ctx.getAttribute("http.request");
+    		}
+
             log.trace("Accessing [" + originalRequest.getRequestLine().getUri() + " "
                     + originalRequest.getRequestLine().getMethod() + "]");
             
@@ -322,7 +356,7 @@ public class ShibHttpClient
             
             // -- If the request was a HEAD request, we need to try again using a GET request  ----
             HttpResponse paosResponse = res;
-            if (req.getRequestLine().getMethod() == "HEAD") {
+            if (originalRequest.getRequestLine().getMethod() == "HEAD") {
                 log.trace("Original request was a HEAD, restarting authenticiation with GET");
                 
                 HttpGet authTriggerRequest = new HttpGet(originalRequest.getRequestLine().getUri());
@@ -429,9 +463,9 @@ public class ShibHttpClient
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
-                    && !REDIRECTABLE.contains(req.getMethod())) {
+                    && !REDIRECTABLE.contains(originalRequest.getRequestLine().getMethod())) {
                 EntityUtils.consume(spLoginResponse.getEntity());
-                throw new NonRepeatableRequestException("Request of type [" + req.getMethod()
+                throw new NonRepeatableRequestException("Request of type [" + originalRequest.getRequestLine().getMethod()
                         + "] cannot be redirected");
             }
 
