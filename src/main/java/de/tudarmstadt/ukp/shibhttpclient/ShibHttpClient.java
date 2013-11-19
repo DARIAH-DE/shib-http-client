@@ -158,10 +158,11 @@ public class ShibHttpClient
 		RequestConfig globalRequestConfig = RequestConfig.custom()
 											.setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
 											.build();
-		
 
-		// we're using the basic CloseableHttpClient (DefaultHttpClient is deprecated), so we need to set things explicitly
+		// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+		// the authentication can be handled by the RequestAddCookies interceptor later
 		HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
+		// Automatically log into IdP if SP requests this
 		HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
 		
 		// build our client
@@ -174,6 +175,7 @@ public class ShibHttpClient
 				// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
 				// the authentication can be handled by the RequestAddCookies interceptor later
 				.addInterceptorFirst(preProcessor)
+				// Automatically log into IdP if SP requests this
 				.addInterceptorFirst(postProcessor)
 				.build();
 
