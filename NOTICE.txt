@@ -1,0 +1,10 @@
+shib-http-client
+
+Portions of the code have been contributed by different parties.
+
+Copyright 2013 Ubiquitous Knowledge Processing (UKP) Lab.
+Technische Universität Darmstadt.
+All rights reserved.
+
+Copyright 2013 Diamond Light Source Ltd.
+All rights reserved.
