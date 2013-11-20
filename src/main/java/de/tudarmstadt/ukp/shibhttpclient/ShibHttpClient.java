@@ -123,7 +123,7 @@ implements HttpClient
 
     private BasicParserPool parserPool;
 
-    private static final List<String> REDIRECTABLE = asList("HEAD", "GET");
+    private static final List<String> REDIRECTABLE = asList("HEAD", "GET", "CONNECT");
 
     /**
      * Create a new client.
@@ -302,11 +302,6 @@ implements HttpClient
         public void process(final HttpRequest req, final HttpContext ctx)
                 throws HttpException, IOException
         {
-            if (req.getRequestLine().getMethod() == "CONNECT") {
-                log.trace("Received CONNECT -- Likely to be a proxy request. Skipping pre-processor");
-                return;
-            }
-
             req.addHeader(HEADER_ACCEPT, MIME_TYPE_PAOS);
             req.addHeader(HEADER_PAOS, "ver=\"" + SAMLConstants.PAOS_NS + "\";\""
                     + SAMLConstants.SAML20ECP_NS + "\"");
