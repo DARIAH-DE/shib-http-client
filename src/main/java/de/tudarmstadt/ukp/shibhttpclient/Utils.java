@@ -21,9 +21,6 @@ package de.tudarmstadt.ukp.shibhttpclient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.security.GeneralSecurityException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
@@ -37,8 +34,6 @@ import javax.xml.transform.stream.StreamResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.conn.ssl.TrustStrategy;
 import org.opensaml.ws.message.decoder.MessageDecodingException;
 import org.opensaml.xml.Configuration;
 import org.opensaml.xml.XMLObject;
@@ -58,28 +53,6 @@ final class Utils
     private Utils()
     {
         // No instances
-    }
-
-    /**
-     * Create a connection manager that trusts any certificate.
-     */
-    static SSLSocketFactory getAnyCertManager()
-    {
-        try {
-            SSLSocketFactory sf = new SSLSocketFactory(new TrustStrategy()
-            {
-                @Override
-                public boolean isTrusted(X509Certificate[] aChain, String aAuthType)
-                    throws CertificateException
-                {
-                    return true;
-                }
-            });
-            return sf;
-        }
-        catch (GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     /**
