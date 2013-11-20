@@ -55,6 +55,7 @@ import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLContextBuilder;
 import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
@@ -155,8 +156,12 @@ implements HttpClient
                 SSLContextBuilder builder = new SSLContextBuilder();
                 builder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
                 SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build());
+                PlainConnectionSocketFactory plainsf = new PlainConnectionSocketFactory();
                 Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
-                        .<ConnectionSocketFactory> create().register("https", sslsf).build();
+                        .<ConnectionSocketFactory> create()
+                        .register("http", plainsf)
+                        .register("https", sslsf)
+                        .build();
                 connMgr = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
             }
             catch (GeneralSecurityException e) {
