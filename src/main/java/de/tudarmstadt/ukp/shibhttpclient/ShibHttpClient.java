@@ -421,8 +421,12 @@ implements HttpClient
             idpLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapRequest)));
             HttpResponse idpLoginResponse = client.execute(idpLoginRequest);
 
-            // -- Handle log-in response tfrom the IdP --------------------------------------------
+            // -- Handle log-in response from the IdP --------------------------------------------
             log.debug("Status: " + idpLoginResponse.getStatusLine());
+            if (idpLoginResponse.getStatusLine().getStatusCode() != 200) {
+                throw new AuthenticationException(idpLoginResponse.getStatusLine().toString());
+            }
+            
             Envelope idpLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
                     idpLoginResponse.getEntity().getContent());
             EntityUtils.consume(idpLoginResponse.getEntity());
