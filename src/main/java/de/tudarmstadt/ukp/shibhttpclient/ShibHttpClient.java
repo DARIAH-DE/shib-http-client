@@ -162,7 +162,7 @@ implements HttpClient
     }
 
     /**
-     * Create a new client (assuming we don't need a proxy)
+     * Create a new client (with an explicit proxy)
      * 
      * @param aIdpUrl
      *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
@@ -183,7 +183,7 @@ implements HttpClient
     }
 
     /**
-     * Create a new client (with explicit proxy and possibly transparent authentication)
+     * Create a new client (with an explicit proxy and possibly transparent authentication)
      * 
      * @param aIdpUrl
      *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
