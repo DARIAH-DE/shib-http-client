@@ -60,6 +60,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
@@ -126,7 +127,7 @@ implements HttpClient
     private static final List<String> REDIRECTABLE = asList("HEAD", "GET", "CONNECT");
 
     /**
-     * Create a new client.
+     * Create a new client (assuming we don't accept self-signed certificates)
      * 
      * @param aIdpUrl
      *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
@@ -134,12 +135,72 @@ implements HttpClient
      *            the user name to log into the IdP.
      * @param aPassword
      *            the password to log in to the IdP.
-     * @param aAnyCert
-     *            if {@code true} accept any certificate from any remote host. Otherwise,
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword)
+    {
+    	// construct ourselves with our abbreviated set of parameters
+    	this(aIdpUrl, aUsername, aPassword, false);
+    }
+
+    /**
+     * Create a new client (assuming we don't need a proxy)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
      *            certificates need to be installed in the JRE.
      */
-    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, boolean aAnyCert)
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, boolean anyCert)
     {
+    	// construct ourselves with our abbreviated set of parameters
+    	this(aIdpUrl, aUsername, aPassword, null, anyCert);
+    }
+
+    /**
+     * Create a new client (assuming we don't need a proxy)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
+     *            certificates need to be installed in the JRE.
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert)
+    {
+    	// construct ourselves with our abbreviated set of parameters
+    	this(aIdpUrl, aUsername, aPassword, aProxy, anyCert, true);
+    }
+
+    /**
+     * Create a new client (with explicit proxy and transparent authentication)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param aProxy
+     *            if not {@code null}, use this proxy instead of the default system proxy (if any)
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
+     *            certificates need to be installed in the JRE.
+     * @param transparentAuth
+     *            if {@code true}, add a HttpRequestPostProcessor to transparently authenticate. 
+     *            Otherwise, you must handle the authentication process yourself.
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert, boolean transparentAuth)
+    {
+
         setIdpUrl(aIdpUrl);
         setUsername(aUsername);
         setPassword(aPassword);
@@ -147,16 +208,15 @@ implements HttpClient
         // Use a pooling connection manager, because we'll have to do a call out to the IdP
         // while still being in a connection with the SP
         PoolingHttpClientConnectionManager connMgr;
-        if (aAnyCert) {
+        if (anyCert) {
             try {
                 SSLContextBuilder builder = new SSLContextBuilder();
                 builder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
-                SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build());
-                PlainConnectionSocketFactory plainsf = new PlainConnectionSocketFactory();
                 Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
                         .<ConnectionSocketFactory> create()
-                        .register("http", plainsf)
-                        .register("https", sslsf)
+                        .register("http", new PlainConnectionSocketFactory())
+                        .register("https", new SSLConnectionSocketFactory(builder.build(), 
+                                SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER))
                         .build();
                 connMgr = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
             }
@@ -172,35 +232,36 @@ implements HttpClient
         connMgr.setMaxTotal(10);
         connMgr.setDefaultMaxPerRoute(5);
         
-        // retrieve the JVM parameters for proxy state (do we have a proxy?)
-        SystemDefaultRoutePlanner sdrp = new SystemDefaultRoutePlanner(ProxySelector.getDefault());
-
         // The client needs to remember the auth cookie
         cookieStore = new BasicCookieStore();
         RequestConfig globalRequestConfig = RequestConfig.custom()
                 .setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
                 .build();
 
-        // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-        // the authentication can be handled by the RequestAddCookies interceptor later
-        HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
-        // Automatically log into IdP if SP requests this
-        HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
-
-        // build our client
-        client = HttpClients.custom()
-                .setConnectionManager(connMgr)
-                // use a proxy if one is specified for the JVM
-                .setRoutePlanner(sdrp)
-                // The client needs to remember the auth cookie
-                .setDefaultRequestConfig(globalRequestConfig)
-                .setDefaultCookieStore(cookieStore)
-                // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-                // the authentication can be handled by the RequestAddCookies interceptor later
-                .addInterceptorFirst(preProcessor)
-                // Automatically log into IdP if SP requests this
-                .addInterceptorFirst(postProcessor)
-                .build();
+		// Let's throw all common client elements into one builder object
+		HttpClientBuilder customClient = HttpClients.custom()
+				.setConnectionManager(connMgr)
+				// The client needs to remember the auth cookie
+				.setDefaultRequestConfig(globalRequestConfig)
+				.setDefaultCookieStore(cookieStore)
+				// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+				// the authentication can be handled by the RequestAddCookies interceptor later
+				.addInterceptorFirst(new HttpRequestPreprocessor());
+		
+		// Automatically log into IdP if transparent Shibboleth authentication handling is requested (default)
+		if (transparentAuth) {
+            customClient = customClient.addInterceptorFirst(new HttpRequestPostprocessor());
+		}
+		
+		// Build the client with/without proxy settings 
+		if (aProxy == null) {
+			// use the proxy settings of the JVM, if specified 
+			client = customClient.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault())).build();
+		}
+		else {
+			// use the explicit proxy
+			client = customClient.setProxy(aProxy).build();
+		}
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -448,7 +509,7 @@ implements HttpClient
                 }
 
                 // Hm, they don't like us
-                if ("urn:oasis:names:tc:SAML:2.0:status:AuthnFailed".equals(sc.getValue())) {
+                if (StatusCode.AUTHN_FAILED_URI.equals(sc.getValue())) {
                     throw new AuthenticationException(sc.getValue());
                 }
             }
