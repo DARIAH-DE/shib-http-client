@@ -121,7 +121,7 @@ implements HttpClient
      * Create a new client (assuming we don't accept self-signed certificates)
      * 
      * @param aIdpUrl
-     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
      * @param aUsername
      *            the user name to log into the IdP.
      * @param aPassword
@@ -137,7 +137,7 @@ implements HttpClient
      * Create a new client (assuming we don't need a proxy)
      * 
      * @param aIdpUrl
-     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
      * @param aUsername
      *            the user name to log into the IdP.
      * @param aPassword
@@ -153,14 +153,16 @@ implements HttpClient
     }
 
     /**
-     * Create a new client (assuming we don't need a proxy)
+     * Create a new client (with an explicit proxy)
      * 
      * @param aIdpUrl
-     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
      * @param aUsername
      *            the user name to log into the IdP.
      * @param aPassword
      *            the password to log in to the IdP.
+     * @param aProxy
+     *            if not {@code null}, use this proxy instead of the default system proxy (if any)
      * @param anyCert
      *            if {@code true}, accept any certificate from any remote host. Otherwise,
      *            certificates need to be installed in the JRE.
@@ -172,10 +174,10 @@ implements HttpClient
     }
 
     /**
-     * Create a new client (with explicit proxy and transparent authentication)
+     * Create a new client (with an explicit proxy and possibly transparent authentication)
      * 
      * @param aIdpUrl
-     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
      * @param aUsername
      *            the user name to log into the IdP.
      * @param aPassword
@@ -186,8 +188,8 @@ implements HttpClient
      *            if {@code true}, accept any certificate from any remote host. Otherwise,
      *            certificates need to be installed in the JRE.
      * @param transparentAuth
-     *            if {@code true}, add a HttpRequestPostProcessor to transparently authenticate. 
-     *            Otherwise, you must handle the authentication process yourself.
+     *            if {@code true} (default), add a HttpRequestPostProcessor to transparently 
+     *            authenticate. Otherwise, you must handle the authentication process yourself.
      */
     public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert, boolean transparentAuth)
     {
