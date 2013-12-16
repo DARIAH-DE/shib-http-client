@@ -31,6 +31,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpHeaders;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
@@ -100,16 +101,6 @@ implements HttpClient
 
     private static final String MIME_TYPE_PAOS = "application/vnd.paos+xml";
 
-//    private static final QName E_PAOS_REQUEST = new QName(SAMLConstants.PAOS_NS, "Request");
-//
-//    private static final QName A_RESPONSE_CONSUMER_URL = new QName("responseConsumerURL");
-
-    private static final String HEADER_AUTHORIZATION = "Authorization";
-
-    private static final String HEADER_CONTENT_TYPE = "Content-Type";
-
-    private static final String HEADER_ACCEPT = "Accept";
-
     private static final String HEADER_PAOS = "PAOS";
 
     private CloseableHttpClient client;
@@ -138,8 +129,8 @@ implements HttpClient
      */
     public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword)
     {
-    	// construct ourselves with our abbreviated set of parameters
-    	this(aIdpUrl, aUsername, aPassword, false);
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, false);
     }
 
     /**
@@ -157,8 +148,8 @@ implements HttpClient
      */
     public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, boolean anyCert)
     {
-    	// construct ourselves with our abbreviated set of parameters
-    	this(aIdpUrl, aUsername, aPassword, null, anyCert);
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, null, anyCert);
     }
 
     /**
@@ -176,8 +167,8 @@ implements HttpClient
      */
     public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert)
     {
-    	// construct ourselves with our abbreviated set of parameters
-    	this(aIdpUrl, aUsername, aPassword, aProxy, anyCert, true);
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, aProxy, anyCert, true);
     }
 
     /**
@@ -238,30 +229,30 @@ implements HttpClient
                 .setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
                 .build();
 
-		// Let's throw all common client elements into one builder object
-		HttpClientBuilder customClient = HttpClients.custom()
-				.setConnectionManager(connMgr)
-				// The client needs to remember the auth cookie
-				.setDefaultRequestConfig(globalRequestConfig)
-				.setDefaultCookieStore(cookieStore)
-				// Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-				// the authentication can be handled by the RequestAddCookies interceptor later
-				.addInterceptorFirst(new HttpRequestPreprocessor());
-		
-		// Automatically log into IdP if transparent Shibboleth authentication handling is requested (default)
-		if (transparentAuth) {
+        // Let's throw all common client elements into one builder object
+        HttpClientBuilder customClient = HttpClients.custom()
+                .setConnectionManager(connMgr)
+                // The client needs to remember the auth cookie
+                .setDefaultRequestConfig(globalRequestConfig)
+                .setDefaultCookieStore(cookieStore)
+                // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
+                // the authentication can be handled by the RequestAddCookies interceptor later
+                .addInterceptorFirst(new HttpRequestPreprocessor());
+        
+        // Automatically log into IdP if transparent Shibboleth authentication handling is requested (default)
+        if (transparentAuth) {
             customClient = customClient.addInterceptorFirst(new HttpRequestPostprocessor());
-		}
-		
-		// Build the client with/without proxy settings 
-		if (aProxy == null) {
-			// use the proxy settings of the JVM, if specified 
-			client = customClient.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault())).build();
-		}
-		else {
-			// use the explicit proxy
-			client = customClient.setProxy(aProxy).build();
-		}
+        }
+        
+        // Build the client with/without proxy settings 
+        if (aProxy == null) {
+            // use the proxy settings of the JVM, if specified 
+            client = customClient.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault())).build();
+        }
+        else {
+            // use the explicit proxy
+            client = customClient.setProxy(aProxy).build();
+        }
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -363,7 +354,7 @@ implements HttpClient
         public void process(final HttpRequest req, final HttpContext ctx)
                 throws HttpException, IOException
         {
-            req.addHeader(HEADER_ACCEPT, MIME_TYPE_PAOS);
+            req.addHeader(HttpHeaders.ACCEPT, MIME_TYPE_PAOS);
             req.addHeader(HEADER_PAOS, "ver=\"" + SAMLConstants.PAOS_NS + "\";\""
                     + SAMLConstants.SAML20ECP_NS + "\"");
 
@@ -422,8 +413,8 @@ implements HttpClient
 
             // -- Check if authentication is necessary --------------------------------------------
             boolean isSamlSoap = false;
-            if (res.getFirstHeader(HEADER_CONTENT_TYPE) != null) {
-                ContentType contentType = ContentType.parse(res.getFirstHeader(HEADER_CONTENT_TYPE)
+            if (res.getFirstHeader(HttpHeaders.CONTENT_TYPE) != null) {
+                ContentType contentType = ContentType.parse(res.getFirstHeader(HttpHeaders.CONTENT_TYPE)
                         .getValue());
                 isSamlSoap = MIME_TYPE_PAOS.equals(contentType.getMimeType());
             }
@@ -477,7 +468,7 @@ implements HttpClient
             // Try logging in to the IdP using HTTP BASIC authentication
             HttpPost idpLoginRequest = new HttpPost(idpUrl);
             idpLoginRequest.getParams().setBooleanParameter(AUTH_IN_PROGRESS, true);
-            idpLoginRequest.addHeader(HEADER_AUTHORIZATION,
+            idpLoginRequest.addHeader(HttpHeaders.AUTHORIZATION,
                     "Basic " + Base64.encodeBytes((username + ":" + password).getBytes()));
             idpLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapRequest)));
             HttpResponse idpLoginResponse = client.execute(idpLoginRequest);
@@ -536,7 +527,7 @@ implements HttpClient
             log.debug("Logging in to SP");
             HttpPost spLoginRequest = new HttpPost(assertionConsumerServiceURL);
             spLoginRequest.getParams().setBooleanParameter(AUTH_IN_PROGRESS, true);
-            spLoginRequest.setHeader(HEADER_CONTENT_TYPE, MIME_TYPE_PAOS);
+            spLoginRequest.setHeader(HttpHeaders.CONTENT_TYPE, MIME_TYPE_PAOS);
             spLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapResponse)));
             HttpClientParams.setRedirecting(spLoginRequest.getParams(), false);
             HttpResponse spLoginResponse = client.execute(spLoginRequest);
