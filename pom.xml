@@ -22,7 +22,7 @@
 	</parent>
 	<groupId>de.tudarmstadt.ukp.shibhttpclient</groupId>
 	<artifactId>shib-http-client</artifactId>
-	<version>1.0.0</version>
+	<version>1.1.0-SNAPSHOT</version>
 	<name>Shibbolethized HTTPClient</name>
 	<description>Minimalistic wrapper around the Apache HTTPClient adding Shibboleth support.</description>
 	<url>https://github.com/reckart/shib-http-client</url>
