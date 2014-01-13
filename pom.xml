@@ -16,16 +16,34 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>de.tudarmstadt.ukp.shibhttpclient</groupId>
-	<artifactId>shib-http-client</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>Shibbolethized HTTPClient</name>
-	<description>Minimalistic wrapper around the Apache HTTPClient adding Shibboleth support.</description>
 	<parent>
 		<groupId>org.sonatype.oss</groupId>
 		<artifactId>oss-parent</artifactId>
 		<version>7</version>
 	</parent>
+	<groupId>de.tudarmstadt.ukp.shibhttpclient</groupId>
+	<artifactId>shib-http-client</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>Shibbolethized HTTPClient</name>
+	<description>Minimalistic wrapper around the Apache HTTPClient adding Shibboleth support.</description>
+	<url>https://github.com/reckart/shib-http-client</url>
+	<scm>
+		<connection>scm:git:https://github.com/reckart/shib-http-client.git</connection>
+		<developerConnection>scm:git:https://github.com/reckart/shib-http-client.git</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/reckart/shib-http-client</url>
+	</scm>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/reckart/shib-http-client/issues</url>
+	</issueManagement>
+	<licenses>
+		<license>
+			<name>The Apache Software License, Version 2.0</name>
+			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>1.6</maven.compiler.source>
@@ -54,15 +72,48 @@
 			<version>1.1</version>
 		</dependency>
 	</dependencies>
-	<scm>
-		<connection>scm:git:https://github.com/reckart/shib-http-client.git</connection>
-		<developerConnection>scm:git:https://github.com/reckart/shib-http-client.git</developerConnection>
-		<tag>HEAD</tag>
-		<url>https://github.com/reckart/shib-http-client</url>
-	</scm>
-	<url>https://github.com/reckart/shib-http-client</url>
-	<issueManagement>
-		<system>GitHub Issues</system>
-		<url>https://github.com/reckart/shib-http-client/issues</url>
-	</issueManagement>
+	<profiles>
+	    <profile>
+			<id>m2e</id>
+			<activation>
+				<property>
+			 		<name>m2e.version</name>
+				</property>
+			</activation>
+			<build>
+				<pluginManagement>
+					<plugins>
+						<!-- 
+						 - This plugin's configuration is used to store Eclipse m2e settings only. 
+						 - It has no influence on the Maven build itself.
+						 -->
+						<plugin>
+							<groupId>org.eclipse.m2e</groupId>
+							<artifactId>lifecycle-mapping</artifactId>
+							<version>1.0.0</version>
+							<configuration>
+								<lifecycleMappingMetadata>
+									<pluginExecutions>
+										<pluginExecution>
+											<pluginExecutionFilter>
+												<groupId>org.apache.maven.plugins</groupId>
+												<artifactId>maven-enforcer-plugin</artifactId>
+												<versionRange>[1,)</versionRange>
+												<goals>
+													<goal>enforce</goal>
+												</goals>
+											</pluginExecutionFilter>
+											<action>
+												<ignore />
+											</action>
+										</pluginExecution>		                
+									</pluginExecutions>
+								</lifecycleMappingMetadata>
+							</configuration>
+						</plugin>			
+					</plugins>
+				</pluginManagement>
+			</build>
+		</profile>
+	</profiles>
 </project>
