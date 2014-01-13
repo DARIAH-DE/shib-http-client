@@ -1,10 +1,15 @@
 shib-http-client
 
-Portions of the code have been contributed by different parties.
+Portions of this project have been funded by the European Commission under the 7th 
+Framework programme Grant Agreement RI-283556 and 283745 as part of the Umbrella 
+system, a joint project of the European Photon and Neutron sources, the PaNdata 
+project, the CRISP project and EuroFEL. 
 
-Copyright 2013 Ubiquitous Knowledge Processing (UKP) Lab.
+Portions of the code have been contributed by different parties:
+
+Copyright 2013-2014 Ubiquitous Knowledge Processing (UKP) Lab.
 Technische Universität Darmstadt.
 All rights reserved.
 
-Copyright 2013 Diamond Light Source Ltd.
+Copyright 2013-2014 Diamond Light Source Ltd.
 All rights reserved.
