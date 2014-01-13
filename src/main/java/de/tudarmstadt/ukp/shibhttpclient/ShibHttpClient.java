@@ -520,7 +520,7 @@ implements HttpClient
             idpLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapRequest)));
             HttpResponse idpLoginResponse = client.execute(idpLoginRequest);
 
-            // -- Handle log-in response from the IdP --------------------------------------------
+            // -- Handle log-in response from the IdP ---------------------------------------------
             log.debug("Status: " + idpLoginResponse.getStatusLine());
             if (idpLoginResponse.getStatusLine().getStatusCode() != 200) {
                 throw new AuthenticationException(idpLoginResponse.getStatusLine().toString());
@@ -556,7 +556,7 @@ implements HttpClient
             //     // Nice guys should send a fault to the SP - we are NOT nice yet
             // }
 
-            // -- Forward ticket to the SP -------------------------------------------------------
+            // -- Forward ticket to the SP --------------------------------------------------------
             // craft the package to send to the SP by copying the response from the IdP but
             // removing the SOAP header sent by the IdP and instead putting in a new header that
             // includes the relay state sent by the SP
@@ -579,7 +579,7 @@ implements HttpClient
             log.debug("Status: " + spLoginResponse.getStatusLine());
             log.debug("Authentication complete");
 
-            // -- Handle unredirectable cases ----------------------------------------------------
+            // -- Handle unredirectable cases -----------------------------------------------------
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
@@ -589,7 +589,7 @@ implements HttpClient
                         originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
             }
 
-            // -- Transparently return response to original request ------------------------------
+            // -- Transparently return response to original request -------------------------------
             // Return response received after login as actual response to original caller
             res.setEntity(spLoginResponse.getEntity());
             res.setHeaders(spLoginResponse.getAllHeaders());
