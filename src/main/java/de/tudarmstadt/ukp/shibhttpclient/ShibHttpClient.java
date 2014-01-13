@@ -279,6 +279,11 @@ implements HttpClient
         password = aPassword;
     }
 
+    protected static String getAuthInProgress()
+    {
+        return AUTH_IN_PROGRESS;
+    }
+    
     @Override
     public HttpParams getParams()
     {
