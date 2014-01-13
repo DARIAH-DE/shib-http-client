@@ -85,6 +85,11 @@ The development of this project was supported by [DARIAH-DE project](https://de.
 
 ![DARIAH Logo](https://de.dariah.eu/liferay-dariah-theme/images/dariah-logo.png)
 
+The development of this project was supported by PaNData as part of the [Umbrella ID](https://www.umbrellaid.org/euu) system.
+
+![Umbrella Logo](https://www.umbrellaid.org/euu/layout/img/logo.png)
+
+
 Licensed under the Apache Software License 2.0. For copyright information, refer to the NOTICE.txt
 file.
 
