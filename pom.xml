@@ -54,4 +54,15 @@
 			<version>1.1</version>
 		</dependency>
 	</dependencies>
+	<scm>
+		<connection>scm:git:https://github.com/reckart/shib-http-client.git</connection>
+		<developerConnection>scm:git:https://github.com/reckart/shib-http-client.git</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/reckart/shib-http-client</url>
+	</scm>
+	<url>https://github.com/reckart/shib-http-client</url>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/reckart/shib-http-client/issues</url>
+	</issueManagement>
 </project>
