@@ -29,9 +29,10 @@ import javax.security.sasl.AuthenticationException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpException;
-import org.apache.http.HttpHost;
 import org.apache.http.HttpHeaders;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
@@ -47,10 +48,8 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.params.HttpClientParams;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -65,7 +64,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
-import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.opensaml.common.xml.SAMLConstants;
@@ -81,6 +79,11 @@ import org.opensaml.xml.XMLObject;
 import org.opensaml.xml.parse.BasicParserPool;
 import org.opensaml.xml.util.Base64;
 
+// deprecated classes we should try to find alternatives for
+import org.apache.http.client.params.HttpClientParams;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.params.HttpParams;
+
 /**
  * Simple Shibbolethized {@link HttpClient} using basic HTTP username/password authentication to
  * authenticate against a predefined IdP. The client indicates its ECP capability to the SP.
@@ -91,6 +94,7 @@ import org.opensaml.xml.util.Base64;
  * performed, the client tries a HEAD request to the specified URL first. If this results in an
  * authentication request, a login is performed before the original request is executed.
  */
+@SuppressWarnings("deprecation")
 public class ShibHttpClient
 implements HttpClient
 {
@@ -346,6 +350,57 @@ implements HttpClient
         return client.execute(aTarget, aRequest, aResponseHandler, aContext);
     }
 
+    /** 
+     * Checks whether the HttpResponse is a SAML SOAP message
+     * @param res the HttpResponse to check
+     * @return true if the HttpResponse is a SAML SOAP message, false if not
+     */
+    protected boolean isSamlSoapResponse(HttpResponse res) 
+    {
+        boolean isSamlSoap = false;
+        if (res.getFirstHeader(HttpHeaders.CONTENT_TYPE) != null) {
+            ContentType contentType = ContentType.parse(res.getFirstHeader(HttpHeaders.CONTENT_TYPE)
+                    .getValue());
+            isSamlSoap = MIME_TYPE_PAOS.equals(contentType.getMimeType());
+        }
+        return isSamlSoap;
+    }
+    
+    /** 
+     * Captures the ECP relay state in a SAML SOAP message
+     * @param soapEnvelope the SOAP message to check for the ECP relay state
+     * @return relayState the ECP relay state in the SOAP message
+     */
+    protected org.opensaml.saml2.ecp.RelayState captureRelayState(org.opensaml.ws.soap.soap11.Envelope soapEnvelope) 
+    {
+    	RelayState relayState = null;
+        if (!soapEnvelope.getHeader()
+                .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).isEmpty()) {
+            relayState = (RelayState) soapEnvelope.getHeader()
+                    .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).get(0);
+            relayState.detach();
+            log.trace("Relay state: captured");
+        }
+        return relayState;
+    }
+    
+    /**
+     * Extracts the SOAP message from the HttpResponse
+     * @param entity the HttpEntity to retrieve the SOAP message from
+     * @return soapEnvelope the SOAP message 
+     * @throws IOException 
+     * @throws IllegalStateException 
+     * @throws ClientProtocolException 
+     */
+    protected org.opensaml.ws.soap.soap11.Envelope getSoapMessage(HttpEntity entity) 
+    		throws ClientProtocolException, IllegalStateException, IOException 
+    {
+        Envelope soapEnvelope = (Envelope) unmarshallMessage(parserPool,
+        		entity.getContent());
+        EntityUtils.consumeQuietly(entity);
+        return soapEnvelope;
+    }
+    
     /**
      * Add the ECP/PAOS headers to each outgoing request.
      */
@@ -384,8 +439,8 @@ implements HttpClient
     }
 
     /**
-     * Analyze responses to detect POAS solicitations for an authentication. Answer these and then
-     * transparently proceeed with the original request.
+     * Analyse responses to detect POAS solicitations for an authentication. Answer these and then
+     * transparently proceed with the original request.
      */
     public final class HttpRequestPostprocessor
         implements HttpResponseInterceptor
@@ -414,14 +469,7 @@ implements HttpClient
             }
 
             // -- Check if authentication is necessary --------------------------------------------
-            boolean isSamlSoap = false;
-            if (res.getFirstHeader(HttpHeaders.CONTENT_TYPE) != null) {
-                ContentType contentType = ContentType.parse(res.getFirstHeader(HttpHeaders.CONTENT_TYPE)
-                        .getValue());
-                isSamlSoap = MIME_TYPE_PAOS.equals(contentType.getMimeType());
-            }
-
-            if (!isSamlSoap) {
+            if (!isSamlSoapResponse(res)) {
                 return;
             }
 
@@ -438,18 +486,10 @@ implements HttpClient
             }
 
             // -- Parse PAOS response -------------------------------------------------------------
-            Envelope initialLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
-                    paosResponse.getEntity().getContent());
+            Envelope initialLoginSoapResponse = getSoapMessage(paosResponse.getEntity());
 
             // -- Capture relay state (optional) --------------------------------------------------
-            RelayState relayState = null;
-            if (!initialLoginSoapResponse.getHeader()
-                    .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).isEmpty()) {
-                relayState = (RelayState) initialLoginSoapResponse.getHeader()
-                        .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).get(0);
-                relayState.detach();
-                log.trace("Relay state: captured");
-            }
+            RelayState relayState = captureRelayState(initialLoginSoapResponse);
 
             // -- Capture response consumer -------------------------------------------------------
 //            // pick out the responseConsumerURL attribute value from the SP response so that
@@ -481,9 +521,7 @@ implements HttpClient
                 throw new AuthenticationException(idpLoginResponse.getStatusLine().toString());
             }
             
-            Envelope idpLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
-                    idpLoginResponse.getEntity().getContent());
-            EntityUtils.consume(idpLoginResponse.getEntity());
+            Envelope idpLoginSoapResponse = getSoapMessage(idpLoginResponse.getEntity());
             String assertionConsumerServiceURL = ((Response) idpLoginSoapResponse.getHeader()
                     .getUnknownXMLObjects(Response.DEFAULT_ELEMENT_NAME).get(0))
                     .getAssertionConsumerServiceURL();
@@ -513,7 +551,7 @@ implements HttpClient
             //     // Nice guys should send a fault to the SP - we are NOT nice yet
             // }
 
-            // -- Forward ticket to the SP --------------------------------------------------------
+            // -- Forward ticket to the SP -------------------------------------------------------
             // craft the package to send to the SP by copying the response from the IdP but
             // removing the SOAP header sent by the IdP and instead putting in a new header that
             // includes the relay state sent by the SP
@@ -536,7 +574,7 @@ implements HttpClient
             log.debug("Status: " + spLoginResponse.getStatusLine());
             log.debug("Authentication complete");
 
-            // -- Handle unredirectable cases -----------------------------------------------------
+            // -- Handle unredirectable cases ----------------------------------------------------
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
@@ -546,7 +584,7 @@ implements HttpClient
                         originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
             }
 
-            // -- Transparently return response to original request -------------------------------
+            // -- Transparently return response to original request ------------------------------
             // Return response received after login as actual response to original caller
             res.setEntity(spLoginResponse.getEntity());
             res.setHeaders(spLoginResponse.getAllHeaders());
