@@ -29,7 +29,9 @@ import javax.security.sasl.AuthenticationException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpException;
+import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
@@ -46,10 +48,8 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.params.HttpClientParams;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ClientConnectionManager;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -60,10 +60,10 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
-import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.opensaml.common.xml.SAMLConstants;
@@ -79,6 +79,11 @@ import org.opensaml.xml.XMLObject;
 import org.opensaml.xml.parse.BasicParserPool;
 import org.opensaml.xml.util.Base64;
 
+// deprecated classes we should try to find alternatives for
+import org.apache.http.client.params.HttpClientParams;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.params.HttpParams;
+
 /**
  * Simple Shibbolethized {@link HttpClient} using basic HTTP username/password authentication to
  * authenticate against a predefined IdP. The client indicates its ECP capability to the SP.
@@ -89,6 +94,7 @@ import org.opensaml.xml.util.Base64;
  * performed, the client tries a HEAD request to the specified URL first. If this results in an
  * authentication request, a login is performed before the original request is executed.
  */
+@SuppressWarnings("deprecation")
 public class ShibHttpClient
 implements HttpClient
 {
@@ -98,16 +104,6 @@ implements HttpClient
             + ".AUTH_IN_PROGRESS";
 
     private static final String MIME_TYPE_PAOS = "application/vnd.paos+xml";
-
-//    private static final QName E_PAOS_REQUEST = new QName(SAMLConstants.PAOS_NS, "Request");
-//
-//    private static final QName A_RESPONSE_CONSUMER_URL = new QName("responseConsumerURL");
-
-    private static final String HEADER_AUTHORIZATION = "Authorization";
-
-    private static final String HEADER_CONTENT_TYPE = "Content-Type";
-
-    private static final String HEADER_ACCEPT = "Accept";
 
     private static final String HEADER_PAOS = "PAOS";
 
@@ -126,20 +122,82 @@ implements HttpClient
     private static final List<String> REDIRECTABLE = asList("HEAD", "GET", "CONNECT");
 
     /**
-     * Create a new client.
+     * Create a new client (assuming we don't accept self-signed certificates)
      * 
      * @param aIdpUrl
-     *            the URL of the IdP. Should probably by something ending in "/SAML2/SOAP/ECP"
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
      * @param aUsername
      *            the user name to log into the IdP.
      * @param aPassword
      *            the password to log in to the IdP.
-     * @param aAnyCert
-     *            if {@code true} accept any certificate from any remote host. Otherwise,
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword)
+    {
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, false);
+    }
+
+    /**
+     * Create a new client (assuming we don't need a proxy)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
      *            certificates need to be installed in the JRE.
      */
-    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, boolean aAnyCert)
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, boolean anyCert)
     {
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, null, anyCert);
+    }
+
+    /**
+     * Create a new client (with an explicit proxy)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param aProxy
+     *            if not {@code null}, use this proxy instead of the default system proxy (if any)
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
+     *            certificates need to be installed in the JRE.
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert)
+    {
+        // construct ourselves with our abbreviated set of parameters
+        this(aIdpUrl, aUsername, aPassword, aProxy, anyCert, true);
+    }
+
+    /**
+     * Create a new client (with an explicit proxy and possibly transparent authentication)
+     * 
+     * @param aIdpUrl
+     *            the URL of the IdP. Should probably be something ending in "/SAML2/SOAP/ECP"
+     * @param aUsername
+     *            the user name to log into the IdP.
+     * @param aPassword
+     *            the password to log in to the IdP.
+     * @param aProxy
+     *            if not {@code null}, use this proxy instead of the default system proxy (if any)
+     * @param anyCert
+     *            if {@code true}, accept any certificate from any remote host. Otherwise,
+     *            certificates need to be installed in the JRE.
+     * @param transparentAuth
+     *            if {@code true} (default), add a HttpRequestPostProcessor to transparently 
+     *            authenticate. Otherwise, you must handle the authentication process yourself.
+     */
+    public ShibHttpClient(String aIdpUrl, String aUsername, String aPassword, HttpHost aProxy, boolean anyCert, boolean transparentAuth)
+    {
+
         setIdpUrl(aIdpUrl);
         setUsername(aUsername);
         setPassword(aPassword);
@@ -147,16 +205,15 @@ implements HttpClient
         // Use a pooling connection manager, because we'll have to do a call out to the IdP
         // while still being in a connection with the SP
         PoolingHttpClientConnectionManager connMgr;
-        if (aAnyCert) {
+        if (anyCert) {
             try {
                 SSLContextBuilder builder = new SSLContextBuilder();
                 builder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
-                SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(builder.build());
-                PlainConnectionSocketFactory plainsf = new PlainConnectionSocketFactory();
                 Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
                         .<ConnectionSocketFactory> create()
-                        .register("http", plainsf)
-                        .register("https", sslsf)
+                        .register("http", new PlainConnectionSocketFactory())
+                        .register("https", new SSLConnectionSocketFactory(builder.build(), 
+                                SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER))
                         .build();
                 connMgr = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
             }
@@ -172,35 +229,36 @@ implements HttpClient
         connMgr.setMaxTotal(10);
         connMgr.setDefaultMaxPerRoute(5);
         
-        // retrieve the JVM parameters for proxy state (do we have a proxy?)
-        SystemDefaultRoutePlanner sdrp = new SystemDefaultRoutePlanner(ProxySelector.getDefault());
-
         // The client needs to remember the auth cookie
         cookieStore = new BasicCookieStore();
         RequestConfig globalRequestConfig = RequestConfig.custom()
                 .setCookieSpec(CookieSpecs.BROWSER_COMPATIBILITY)
                 .build();
 
-        // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
-        // the authentication can be handled by the RequestAddCookies interceptor later
-        HttpRequestPreprocessor preProcessor = new HttpRequestPreprocessor();
-        // Automatically log into IdP if SP requests this
-        HttpRequestPostprocessor postProcessor = new HttpRequestPostprocessor();
-
-        // build our client
-        client = HttpClients.custom()
+        // Let's throw all common client elements into one builder object
+        HttpClientBuilder customClient = HttpClients.custom()
                 .setConnectionManager(connMgr)
-                // use a proxy if one is specified for the JVM
-                .setRoutePlanner(sdrp)
                 // The client needs to remember the auth cookie
                 .setDefaultRequestConfig(globalRequestConfig)
                 .setDefaultCookieStore(cookieStore)
                 // Add the ECP/PAOS headers - needs to be added first so the cookie we get from
                 // the authentication can be handled by the RequestAddCookies interceptor later
-                .addInterceptorFirst(preProcessor)
-                // Automatically log into IdP if SP requests this
-                .addInterceptorFirst(postProcessor)
-                .build();
+                .addInterceptorFirst(new HttpRequestPreprocessor());
+        
+        // Automatically log into IdP if transparent Shibboleth authentication handling is requested (default)
+        if (transparentAuth) {
+            customClient = customClient.addInterceptorFirst(new HttpRequestPostprocessor());
+        }
+        
+        // Build the client with/without proxy settings 
+        if (aProxy == null) {
+            // use the proxy settings of the JVM, if specified 
+            client = customClient.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault())).build();
+        }
+        else {
+            // use the explicit proxy
+            client = customClient.setProxy(aProxy).build();
+        }
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -292,6 +350,57 @@ implements HttpClient
         return client.execute(aTarget, aRequest, aResponseHandler, aContext);
     }
 
+    /** 
+     * Checks whether the HttpResponse is a SAML SOAP message
+     * @param res the HttpResponse to check
+     * @return true if the HttpResponse is a SAML SOAP message, false if not
+     */
+    protected boolean isSamlSoapResponse(HttpResponse res) 
+    {
+        boolean isSamlSoap = false;
+        if (res.getFirstHeader(HttpHeaders.CONTENT_TYPE) != null) {
+            ContentType contentType = ContentType.parse(res.getFirstHeader(HttpHeaders.CONTENT_TYPE)
+                    .getValue());
+            isSamlSoap = MIME_TYPE_PAOS.equals(contentType.getMimeType());
+        }
+        return isSamlSoap;
+    }
+    
+    /** 
+     * Captures the ECP relay state in a SAML SOAP message
+     * @param soapEnvelope the SOAP message to check for the ECP relay state
+     * @return relayState the ECP relay state in the SOAP message
+     */
+    protected org.opensaml.saml2.ecp.RelayState captureRelayState(org.opensaml.ws.soap.soap11.Envelope soapEnvelope) 
+    {
+    	RelayState relayState = null;
+        if (!soapEnvelope.getHeader()
+                .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).isEmpty()) {
+            relayState = (RelayState) soapEnvelope.getHeader()
+                    .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).get(0);
+            relayState.detach();
+            log.trace("Relay state: captured");
+        }
+        return relayState;
+    }
+    
+    /**
+     * Extracts the SOAP message from the HttpResponse
+     * @param entity the HttpEntity to retrieve the SOAP message from
+     * @return soapEnvelope the SOAP message 
+     * @throws IOException 
+     * @throws IllegalStateException 
+     * @throws ClientProtocolException 
+     */
+    protected org.opensaml.ws.soap.soap11.Envelope getSoapMessage(HttpEntity entity) 
+    		throws ClientProtocolException, IllegalStateException, IOException 
+    {
+        Envelope soapEnvelope = (Envelope) unmarshallMessage(parserPool,
+        		entity.getContent());
+        EntityUtils.consumeQuietly(entity);
+        return soapEnvelope;
+    }
+    
     /**
      * Add the ECP/PAOS headers to each outgoing request.
      */
@@ -302,7 +411,7 @@ implements HttpClient
         public void process(final HttpRequest req, final HttpContext ctx)
                 throws HttpException, IOException
         {
-            req.addHeader(HEADER_ACCEPT, MIME_TYPE_PAOS);
+            req.addHeader(HttpHeaders.ACCEPT, MIME_TYPE_PAOS);
             req.addHeader(HEADER_PAOS, "ver=\"" + SAMLConstants.PAOS_NS + "\";\""
                     + SAMLConstants.SAML20ECP_NS + "\"");
 
@@ -330,8 +439,8 @@ implements HttpClient
     }
 
     /**
-     * Analyze responses to detect POAS solicitations for an authentication. Answer these and then
-     * transparently proceeed with the original request.
+     * Analyse responses to detect PAOS solicitations for an authentication. Answer these and then
+     * transparently proceed with the original request.
      */
     public final class HttpRequestPostprocessor
         implements HttpResponseInterceptor
@@ -360,14 +469,7 @@ implements HttpClient
             }
 
             // -- Check if authentication is necessary --------------------------------------------
-            boolean isSamlSoap = false;
-            if (res.getFirstHeader(HEADER_CONTENT_TYPE) != null) {
-                ContentType contentType = ContentType.parse(res.getFirstHeader(HEADER_CONTENT_TYPE)
-                        .getValue());
-                isSamlSoap = MIME_TYPE_PAOS.equals(contentType.getMimeType());
-            }
-
-            if (!isSamlSoap) {
+            if (!isSamlSoapResponse(res)) {
                 return;
             }
 
@@ -384,18 +486,10 @@ implements HttpClient
             }
 
             // -- Parse PAOS response -------------------------------------------------------------
-            Envelope initialLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
-                    paosResponse.getEntity().getContent());
+            Envelope initialLoginSoapResponse = getSoapMessage(paosResponse.getEntity());
 
             // -- Capture relay state (optional) --------------------------------------------------
-            RelayState relayState = null;
-            if (!initialLoginSoapResponse.getHeader()
-                    .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).isEmpty()) {
-                relayState = (RelayState) initialLoginSoapResponse.getHeader()
-                        .getUnknownXMLObjects(RelayState.DEFAULT_ELEMENT_NAME).get(0);
-                relayState.detach();
-                log.trace("Relay state: captured");
-            }
+            RelayState relayState = captureRelayState(initialLoginSoapResponse);
 
             // -- Capture response consumer -------------------------------------------------------
 //            // pick out the responseConsumerURL attribute value from the SP response so that
@@ -416,7 +510,7 @@ implements HttpClient
             // Try logging in to the IdP using HTTP BASIC authentication
             HttpPost idpLoginRequest = new HttpPost(idpUrl);
             idpLoginRequest.getParams().setBooleanParameter(AUTH_IN_PROGRESS, true);
-            idpLoginRequest.addHeader(HEADER_AUTHORIZATION,
+            idpLoginRequest.addHeader(HttpHeaders.AUTHORIZATION,
                     "Basic " + Base64.encodeBytes((username + ":" + password).getBytes()));
             idpLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapRequest)));
             HttpResponse idpLoginResponse = client.execute(idpLoginRequest);
@@ -427,9 +521,7 @@ implements HttpClient
                 throw new AuthenticationException(idpLoginResponse.getStatusLine().toString());
             }
             
-            Envelope idpLoginSoapResponse = (Envelope) unmarshallMessage(parserPool,
-                    idpLoginResponse.getEntity().getContent());
-            EntityUtils.consume(idpLoginResponse.getEntity());
+            Envelope idpLoginSoapResponse = getSoapMessage(idpLoginResponse.getEntity());
             String assertionConsumerServiceURL = ((Response) idpLoginSoapResponse.getHeader()
                     .getUnknownXMLObjects(Response.DEFAULT_ELEMENT_NAME).get(0))
                     .getAssertionConsumerServiceURL();
@@ -448,7 +540,7 @@ implements HttpClient
                 }
 
                 // Hm, they don't like us
-                if ("urn:oasis:names:tc:SAML:2.0:status:AuthnFailed".equals(sc.getValue())) {
+                if (StatusCode.AUTHN_FAILED_URI.equals(sc.getValue())) {
                     throw new AuthenticationException(sc.getValue());
                 }
             }
@@ -459,7 +551,7 @@ implements HttpClient
             //     // Nice guys should send a fault to the SP - we are NOT nice yet
             // }
 
-            // -- Forward ticket to the SP --------------------------------------------------------
+            // -- Forward ticket to the SP -------------------------------------------------------
             // craft the package to send to the SP by copying the response from the IdP but
             // removing the SOAP header sent by the IdP and instead putting in a new header that
             // includes the relay state sent by the SP
@@ -475,14 +567,14 @@ implements HttpClient
             log.debug("Logging in to SP");
             HttpPost spLoginRequest = new HttpPost(assertionConsumerServiceURL);
             spLoginRequest.getParams().setBooleanParameter(AUTH_IN_PROGRESS, true);
-            spLoginRequest.setHeader(HEADER_CONTENT_TYPE, MIME_TYPE_PAOS);
+            spLoginRequest.setHeader(HttpHeaders.CONTENT_TYPE, MIME_TYPE_PAOS);
             spLoginRequest.setEntity(new StringEntity(xmlToString(idpLoginSoapResponse)));
             HttpClientParams.setRedirecting(spLoginRequest.getParams(), false);
             HttpResponse spLoginResponse = client.execute(spLoginRequest);
             log.debug("Status: " + spLoginResponse.getStatusLine());
             log.debug("Authentication complete");
 
-            // -- Handle unredirectable cases -----------------------------------------------------
+            // -- Handle unredirectable cases ----------------------------------------------------
             // If we get a redirection and the request is redirectable, then let the client redirect
             // If the request is not redirectable, signal that the operation must be retried.
             if (spLoginResponse.getStatusLine().getStatusCode() == 302
@@ -492,7 +584,7 @@ implements HttpClient
                         originalRequest.getRequestLine().getMethod() + "] cannot be redirected");
             }
 
-            // -- Transparently return response to original request -------------------------------
+            // -- Transparently return response to original request ------------------------------
             // Return response received after login as actual response to original caller
             res.setEntity(spLoginResponse.getEntity());
             res.setHeaders(spLoginResponse.getAllHeaders());
