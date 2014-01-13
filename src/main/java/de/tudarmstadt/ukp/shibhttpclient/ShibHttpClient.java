@@ -439,7 +439,7 @@ implements HttpClient
     }
 
     /**
-     * Analyse responses to detect POAS solicitations for an authentication. Answer these and then
+     * Analyse responses to detect PAOS solicitations for an authentication. Answer these and then
      * transparently proceed with the original request.
      */
     public final class HttpRequestPostprocessor
