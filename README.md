@@ -49,13 +49,13 @@ shib-http-client is available from [Maven Central](http://search.maven.org/#sear
 
 You can download and use it as a JAR, or you can add it to a Maven project as a dependency:
 
-<pre><code>
+```xml
 <dependency>
     <groupId>de.tudarmstadt.ukp.shibhttpclient</groupId>
     <artifactId>shib-http-client</artifactId>
     <version>1.0.0</version>
 </dependency>
-</code></pre>
+```
 
 Troubleshooting
 ---------------
